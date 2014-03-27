@@ -7,6 +7,11 @@ import org.json.XML;
 import org.json.JSONArray;
 
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.DB;
+import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
@@ -17,6 +22,9 @@ public class ExtractData {
 	Client client =  Client.create();
 	ClientResponse clientresponse;
 	JSONObject agencyobj = new JSONObject();
+	MongoHandler mh = new MongoHandler();
+	
+	
 	
 	public JSONArray getagencyList()
 	{
@@ -37,10 +45,11 @@ public class ExtractData {
 		agencylist = (JSONArray)bodyobj.get("agency");
 		
 		agencyobj.put("agencyList", agencylist);
+						
+		//put the list of agency as collections in mongodb
+		//mh.insertAgencydb(agencylist);		
+		//System.out.println("inserted agencies into collection... ");
 		
-		//System.out.println("Agency obj: "+agencyobj.toString(4));
-		//System.out.println("agency list: "+agencylist.toString(4));
-		//System.out.println("Json obj: "+obj.toString(4));			
 		
 		} catch (JSONException e) {
 			// TODO Auto-generated catch block
@@ -58,7 +67,7 @@ public class ExtractData {
 		try{
 			agencylist = agencyobj.getJSONArray("agencyList");
 			
-			for(int i=0;i<1;i++)
+			for(int i=0;i<agencylist.length();i++)
 			{
 				JSONObject tobj = agencylist.getJSONObject(i);
 				String agency = tobj.getString("tag");
@@ -76,16 +85,27 @@ public class ExtractData {
 				
 				JSONObject obj = XMLtoJSON(output);
 				JSONObject bodyobj = obj.getJSONObject("body");
-				routelist = (JSONArray)bodyobj.get("route");
+				if(bodyobj.has("route"))
+				{
+					if(bodyobj.get("route").getClass().equals(JSONArray.class))
+					{
+						routelist = (JSONArray)bodyobj.get("route");					
+						tobj.put("routeList", routelist);					
+						getRouteConfig(agency, tobj.getJSONArray("routeList"));
+						//put the route into proper agency collection
+						//mh.insertRouteToAgency(agency, routelist);					
+						//System.out.println("Inserted agency :"+agency + " :into agency collection...");
+					}
+					else
+					{
+						System.out.println("");
+						System.out.println("Error for agency: "+agency);
+						System.out.println();
+					}
+					
+				}
 				
-				tobj.put("routeList", routelist);
-				
-				//agencyobj.put("routeList", routelist);
-				System.out.println("Agency obj with route list : "+agencyobj.toString(4));
-				//System.out.println("route list obj: "+routelist.toString(4));
-				//System.out.println("route list "+output);		
-				
-				getRouteConfig(agency, routelist);
+	
 			}
 			
 		}catch(Exception e)
@@ -99,8 +119,9 @@ public class ExtractData {
 		
 		String baseurl = "http://webservices.nextbus.com/service/publicXMLFeed?command=routeConfig&a="+agency+"&r=";
 		
+		
 		try{
-			for(int i=0;i<1;i++)
+			for(int i=0;i<routeList.length();i++)
 			{
 				JSONObject tobj = routeList.getJSONObject(i);
 				String tag = tobj.getString("tag"); 
@@ -120,12 +141,11 @@ public class ExtractData {
 				JSONObject obj = XMLtoJSON(output);
 				JSONObject bodyobj = obj.getJSONObject("body");
 				
-				//System.out.println("route Config obj"+obj.toString(4));
+				tobj.put("routeConfig", bodyobj);
 				
-//				routelist = (JSONArray)bodyobj.get("route");
-//				
-//				System.out.println("obj: "+routelist.toString(4));
-				//System.out.println("route config data "+output);				
+				mh.insertRouteConfigToRoute(agency, tag, bodyobj);
+								
+				//add the agency obj to mongodb 				
 			}
 			
 		}catch(Exception e)
@@ -152,7 +172,8 @@ public class ExtractData {
 	public static void main(String[] args)
 	{
 		ExtractData ed = new ExtractData();
-		JSONArray arrlist = ed.getagencyList();
-		ed.getRouteList();		
+		JSONArray arrlist = ed.getagencyList();		
+		ed.getRouteList();
+				
 	}
 }
